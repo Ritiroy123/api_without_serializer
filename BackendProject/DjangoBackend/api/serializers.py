@@ -63,14 +63,15 @@ class  RegisterSerializer(serializers.ModelSerializer):
 
     )
     user.set_password(password)
-    '''token = jwt.encode({'user_id': user.id}, settings.SECRET_KEY, algorithm='HS256')
+    token = jwt.encode({'user_id': user.id}, settings.SECRET_KEY, algorithm='HS256')
     send_mail(
             'Account Verification',
             f'Click the following link to verify your email: http://localhost:3000/login?token={token}',
             settings.EMAIL_HOST_USER,
             [user.email],
             fail_silently=False,
-        )'''
+        )
+    print("send email successfully")
     
     user.save()
     return user

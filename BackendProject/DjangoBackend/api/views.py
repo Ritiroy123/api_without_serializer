@@ -33,6 +33,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
+from django.core.mail import EmailMessage
 
 
 from django.forms.models import model_to_dict
@@ -290,8 +291,8 @@ def webex_callback(request):
 def create_work_info(request):
     try:
         user = request.user
-        if not user.is_authenticated:
-            return Response({"error": "User is not authenticated."}, status=status.HTTP_401_UNAUTHORIZED)
+        # if not user.is_authenticated:
+        #     return Response({"error": "User is not authenticated."}, status=status.HTTP_401_UNAUTHORIZED)
         data = request.data
         work_info_instance = checklist(
             user=user,
@@ -317,8 +318,9 @@ def create_work_info(request):
         )
         work_info_instance.save()
         user_email = work_info_instance.user.email
+       
         subject = 'New Worker Information'
-        message = "New work"
+       
         from_email = 'ritiroy85257@gmail.com'
         recipient_list = [user_email]
         # Generate HTML content from the template (if needed)
@@ -330,6 +332,7 @@ def create_work_info(request):
         plain_message = strip_tags(html_message)  # Strip HTML for plain text version
         # Send email
         send_mail(subject, plain_message, from_email, recipient_list, html_message=html_message, fail_silently=False)
+        
 
         return Response(data, status=status.HTTP_201_CREATED)
     except Exception as e:
@@ -358,24 +361,44 @@ def create_work_info(request):
 
 @api_view(['GET'])
 def get_checklists_for_current_date(request):
-    current_date = timezone.now() - timedelta(days=0)
-    checklists = checklist.objects.filter(work_start_end_date=current_date)
-    
-    completeness_data = []
+    if request.user.is_staff:
+        current_date = timezone.now() - timedelta(days=0)
+        checklists = checklist.objects.filter(work_start_end_date=current_date)
+        
+        completeness_data = []
 
-    for Checklist in checklists:
-        fields = Checklist._meta.get_fields()
-        is_all_filled = all(
-            getattr(Checklist, field.name) or isinstance(field, models.BooleanField)
-            for field in fields if isinstance(field, (models.TextField, models.BooleanField))
-        )
-        serializer = getidSerializer(Checklist)
-        completeness_data.append({
-            'data': serializer.data,
-            'completeness_status': is_all_filled
-        })
+        for Checklist in checklists:
+            fields = Checklist._meta.get_fields()
+            is_all_filled = all(
+                getattr(Checklist, field.name) or isinstance(field, models.BooleanField)
+                for field in fields if isinstance(field, (models.TextField, models.BooleanField))
+            )
+            serializer = getidSerializer(Checklist)
+            completeness_data.append({
+                'data': serializer.data,
+                'completeness_status': is_all_filled
+            })
 
-    return Response(completeness_data)
+        return Response(completeness_data)
+    else:
+        current_date = timezone.now() - timedelta(days=0)
+        checklists = checklist.objects.filter(work_start_end_date=current_date).filter(user=request.user)
+        
+        completeness_data = []
+
+        for Checklist in checklists:
+            fields = Checklist._meta.get_fields()
+            is_all_filled = all(
+                getattr(Checklist, field.name) or isinstance(field, models.BooleanField)
+                for field in fields if isinstance(field, (models.TextField, models.BooleanField))
+            )
+            serializer = getidSerializer(Checklist)
+            completeness_data.append({
+                'data': serializer.data,
+                'completeness_status': is_all_filled
+            })
+
+        return Response(completeness_data)
 
     
 
@@ -410,6 +433,7 @@ class ChecklistUpdateView(APIView):
                     email_template = 'alldetail.html'
                     email_context = {
                         'evening_details': serializer.data,
+                        
                         'morning_details':other_serializer.data
                     }
                     html_message = render_to_string(email_template, email_context)
@@ -459,23 +483,52 @@ def MainDetailView(request,auto_increment_id):
 #             return Response({"message": "date not found"}, status=status.HTTP_404_NOT_FOUND)        
 @api_view(['GET'])
 def AllView(request):
-        if request.user.is_authenticated:
-            authenticated_user = request.user
+    is_staff = request.user.is_staff
 
-            # Retrieve checklists associated with the authenticated user
-            checklists = checklist.objects.filter(user=authenticated_user)
+    if is_staff:
+        checklists = checklist.objects.all().values()
+    else:
+        checklists = checklist.objects.filter(user=request.user).values()
 
-            # Check if any checklists were found
-            if checklists.exists():
-                # Create a dictionary to represent the data
-                checklists_data = checklists.values()
+    user_id_to_email = {}
 
-                return Response(checklists_data, status=200)
-            else:
-                return Response({"message": "No checklists found for this user."}, status=204)
+    for checklist_data in checklists:
+        user_id = checklist_data['user_id']
+        user = User.objects.filter(id=user_id).first()
+        if user:
+            user_id_to_email[user_id] = user.email
         else:
-            return Response({"message": "Authentication required."}, status=401)
-      
+            user_id_to_email[user_id] = None
+
+    # Include is_staff in each checklist item
+    checklists_with_email = [
+        {
+            'is_staff': is_staff,  # Include is_staff
+            'user_email': user_id_to_email[checklist_data['user_id']],
+            **checklist_data
+        }
+        for checklist_data in checklists
+    ]
+
+    response_data = {
+        "checklists": checklists_with_email,
+    }
+
+    return Response(response_data, status=200)
+            
+            
+    # try:
+    #             # Retrieve all data from the checklist model
+    #             checklists = checklist.objects.all()
+    #             serializer = AllSerializer(checklists,many=True)
+    #             return Response(serializer.data, status=status.HTTP_200_OK)
+    # except checklist.DoesNotExist:
+    #             return Response(status=status.HTTP_404_NOT_FOUND)
+        # if request.user.is_authenticated:
+        #     authenticated_user = request.user
+
+           
+            
 # storing the JSON response 
 # from url in data
 
@@ -547,6 +600,51 @@ class ZohoProjectsView(APIView):
 
 
 
+# class ZohoProjectsView(APIView):
+#     def generate_access_token(self, refresh_token):
+#         # Your existing code for generating the access token
+
+#     def get(self, request, *args, **kwargs):
+#         # Your existing code for retrieving the access token and project info
+        
+#         # Additional URI for CRM data
+#         crm_uri = "https://www.zohoapis.com/crm/v3/Accounts?fields=Master_Customer_Id,Account_Name"  # Replace with the actual URI
+        
+#         # Make a request to the CRM URI to fetch CRM data
+#         headers_crm = {
+#             'Authorization': f'Bearer {access_token_for_crm}',  # Replace with the CRM access token
+#         }
+#         response_crm = requests.get(crm_uri, headers=headers_crm)
+#         data_crm = response_crm.json() if response_crm.status_code == 200 else {}
+
+#         # Create a set to store Master_Customer_Ids from CRM data
+#         master_customer_ids = set()
+#         for item in data_crm.get("data", []):
+#             master_customer_id = item.get("Master_Customer_Id")
+#             if master_customer_id:
+#                 master_customer_ids.add(master_customer_id)
+
+#         # Continue with your existing code to fetch and process the Zoho Projects data
+#         active_projects = []
+
+#         for project in total_projects:
+#             for custom_field in project["custom_fields"]:
+#                 if "Customer ID" in custom_field:
+#                     customer_id = custom_field["Customer ID"]
+#                     if project["status"] == "active" and customer_id in master_customer_ids:
+#                         project_info = {
+#                             "name": project["name"],
+#                             "owner_name": project["owner_name"],
+#                             "Customer ID": customer_id
+#                         }
+#                         active_projects.append(project_info)
+
+#         project_info = {"projects": active_projects}
+#         cache.set('project_info', project_info, timeout=7200)  # Cache for 1 hour
+
+#         return Response(project_info)
+
+
 
 @api_view(['GET'])
 def get_checklist_with_completeness(request, auto_increment_id):
@@ -562,12 +660,14 @@ def get_checklist_with_completeness(request, auto_increment_id):
         getattr(checklist_item, field.name, '') or isinstance(field, models.BooleanField)
         for field in fields if isinstance(field, (models.TextField, models.BooleanField))
     )
+    checklists_data = checklist.objects.filter(auto_increment_id=auto_increment_id).values().first()
     
     completeness_status = 'true' if is_all_filled else 'false'
 
-    checklist_dict =  checklist_item.values()
+    
     response_data = {
-        'data': checklist_dict,
+        'data': checklists_data,
+        
         'all_fields_filled': completeness_status
     }
     
@@ -593,4 +693,401 @@ def get_checklist_data(request):
     return Response(serialized_checklists)
 
 
+# class ZohoProjects(APIView):
+#     def generate_access_token(self, refresh_token):
+#         url = "https://accounts.zoho.com/oauth/v2/token"
+#         payload={'grant_type': 'refresh_token',
+#             'client_id': '1000.4D0LT5YLPOKPGZ5IFJNVNYTP8IEVFN',
+#             'client_secret': '5addc71050ce2b59934d7ba04d977c3bca5e9e6b6e',
+#             'redirect_uri': 'https://www.google.com/',
+#             'refresh_token': '1000.37614442538599aa9ee078f097c04422.b8e995b721dd851709c3cd2c53bee7ec'}
+#         response = requests.post(url, data=payload)
+#         data = response.json()
+#         if 'access_token' in data:
+#             return data['access_token']
+#         return None
+#     def get(self, request, *args, **kwargs):
+#             zoho_api_url = "https://projectsapi.zoho.com/restapi/portal/687895858/projects/"
+#             refresh_token = "1000.37614442538599aa9ee078f097c04422.b8e995b721dd851709c3cd2c53bee7ec"
 
+    
+        
+#             headers = {
+#                 'Authorization': f'Bearer {refresh_token}',
+#                 "Content-Type": "application/json"
+#             }
+#             start = 0
+#             size = 200
+#             total_projects = []
+
+#             while True:
+#                 params = {
+#                     "index": start,
+#                     "range": size
+#                 }
+
+#                 response = requests.get(zoho_api_url, headers=headers, params=params)
+#                 data = response.json()
+#                 total_projects.extend(data["projects"])
+
+#                 if len(data["projects"]) < size:
+#                     break
+#                 else:
+#                     start += size
+
+#             active_projects = [
+#                 {"name": project["name"], "owner_name": project["owner_name"]}
+#                 for project in total_projects if project["status"] == "active"
+#             ]
+            
+#             project_info = {"projects": active_projects}
+           
+
+#             return Response(project_info)
+
+
+
+
+# def retrieve_data_from_api(api_url, api_params, api_token):
+#     # Set up the headers with the authorization token
+#     headers = {
+#         "Authorization": f"Zoho-oauthtoken 1000.eedbd8bf57afc9d78df60e3f1b8953e8.89d8415d986795b29561adfe46d2a53c"
+#     }
+
+#     # Initialize a list to store all the records
+#     all_records = []
+
+#     # Variable to track the current page
+#     page = 1
+
+#     while True:
+#         # Set the page number in the parameters
+#         api_params["page"] = page
+
+#         # Make a GET request to retrieve the records for the current page
+#         response = requests.get(api_url, params=api_params, headers=headers)
+
+#         # Check if the request was successful
+#         if response.status_code == 200:
+#             data = response.json()
+#             records = data.get("data")
+
+#             if records:
+#                 all_records.extend(records)
+#                 page += 1
+#             else:
+#                 # No more records to retrieve
+#                 break
+#         else:
+#             print("no data found")
+#             break
+
+#     # Now, all_records contains all the retrieved records
+#     return all_records
+
+# # Example usage:
+# api_url = "https://www.zohoapis.com/crm/v3/Accounts"
+# api_params = {
+#     "fields": "id,Master_Customer_Id",
+#     "per_page": 200
+# }
+# api_token = "1000.eedbd8bf57afc9d78df60e3f1b8953e8.89d8415d986795b29561adfe46d2a53c"
+
+# result = retrieve_data_from_api(api_url, api_params, api_token)
+# print(f"Total Records Retrieved: {len(result)}")
+
+
+
+
+
+# def fetch_records(api_url, api_params, api_token):
+#     all_records = []
+
+#     headers = {
+#         "Authorization": f"Zoho-oauthtoken 1000.2639509691cb1955c534b35a12c81b10.2463b4a35cce87eb6f78b95fdbd9d464"
+#     }
+
+    
+#     while True:
+#         # Make a GET request to retrieve data
+#         response = requests.get(api_url, params=api_params, headers=headers)
+
+#         # Check if the request was successful
+#         if response.status_code == 200:
+#             data = response.json()
+#             records = data.get("data")
+
+#             if records:
+#                 all_records.extend(records)
+
+#             # Check for the presence of next_page_token
+#             next_page_token = data.get("next_page_token")
+
+#             if not next_page_token:
+#                 break
+
+#             # Use the next_page_token for the next request
+#             api_params["page_token"] = next_page_token
+#         else:
+#             print(f"Error: {response.status_code}")
+#             break
+
+#     return all_records
+
+# # Example usage:
+# api_url = "https://www.zohoapis.com/crm/v3/Accounts"
+# api_params = {
+#     "fields": "id,Master_Customer_Id",
+#     "per_page": 200
+# }
+# api_token = "1000.eedbd8bf57afc9d78df60e3f1b8953e8.89d8415d986795b29561adfe46d2a53c"
+# result = fetch_records(api_url, api_params, api_token)
+# print(f"Total Records Retrieved: {len(result)}")
+
+
+
+
+# url = "https://www.zohoapis.com/crm/v3/Accounts"
+
+# # Initialize a list to store all the retrieved data
+# all_data = []
+# headers = {
+#     "Authorization": "Zoho-oauthtoken 1000.2639509691cb1955c534b35a12c81b10.2463b4a35cce87eb6f78b95fdbd9d464"
+# }
+
+# next_page_token = None
+
+# while True:  # Changed to an infinite loop since we'll break when there's no more data
+#     params = {
+#         "fields": "Master_Customer_Id,Account_Name",  
+#         "per_page": 200
+#     }
+
+#     if next_page_token:
+#         params["page_token"] = next_page_token
+
+#     response = requests.get(url, params=params, headers=headers)
+
+#     if response.status_code != 200:
+#         print(f"Error: {response.status_code}")
+#         break
+
+#     data = response.json()
+#     records = data.get("data", [])
+
+#     if not records:
+#         break  # No more data to retrieve, break out of the loop
+
+#     all_data.extend(records)
+#     page_token = data.get("info", {}).get("next_page_token")
+
+# # print(f"Total records retrieved: {len(all_data)}")
+# url = "https://www.zohoapis.com/crm/v3/Accounts"
+
+# # Set up your API key or authorization header
+# headers = {
+#     "Authorization": "Zoho-oauthtoken 1000.2639509691cb1955c534b35a12c81b10.2463b4a35cce87eb6f78b95fdbd9d464"  # Replace with your actual access token
+# }
+
+# all_records = []
+
+# # Start with the first page
+# page_token = None
+
+# while True:
+#     # Set up the parameters for the API request
+#     params = {
+#         "fields": "Master_Customer_Id,Account_Name",
+#         "per_page": 200
+        
+#     }
+
+#     # If there's a page token, include it in the request
+#     if page_token:
+#         params["page_token"] = page_token
+
+#     # Make the API request
+#     response = requests.get(url, headers=headers, params=params)
+
+#     # Check for errors in the response
+#     if response.status_code != 200:
+#         print(f"Error: {response.status_code} - {response.text}")
+#         break
+
+#     # Parse the JSON response
+#     data = response.json()
+
+#     # Extract the records from the current page
+#     records = data.get("data", [])
+
+#     # Add the records to the result
+#     all_records.extend(records)
+
+#     # Check if there are more pages to fetch
+#     if not data.get("info", {}).get("more_records"):
+#         break
+
+#     # Get the next page token for the next iteration
+#     page_token = data.get("info", {}).get("next_page_token")
+
+class ZohoProjects(APIView):
+    def generate_access_token(self, refresh_token):
+        
+        url = "https://accounts.zoho.com/oauth/v2/token"
+        payload={'grant_type': 'refresh_token',
+            'client_id': '1000.4D0LT5YLPOKPGZ5IFJNVNYTP8IEVFN',
+            'client_secret': '5addc71050ce2b59934d7ba04d977c3bca5e9e6b6e',
+            'redirect_uri': 'https://www.google.com/',
+            'refresh_token': '1000.37614442538599aa9ee078f097c04422.b8e995b721dd851709c3cd2c53bee7ec'}
+        response = requests.post(url, data=payload)
+        data = response.json()
+        if 'access_token' in data:
+            return data['access_token']
+        return None
+    def generate_second_access_token(self, refresh_token):
+        
+        url = "https://accounts.zoho.com/oauth/v2/token"
+        payload={'grant_type': 'refresh_token',
+            'client_id': '1000.ZF49BE98RN6NJIHNX612AVTPY3O4DH',
+            'client_secret': 'bf3a0afb93f143160bf19e0020e094bff43f509b6f',
+            'redirect_uri': 'https://www.google.com/',
+            'refresh_token': '1000.348aa66b79cf3f1e32b635061bbf737c.3356f2bb63ce20071ccb2706413cb3c8'}
+        response = requests.post(url, data=payload)
+        data = response.json()
+        if 'access_token' in data:
+            return data['access_token']
+        return None
+
+       
+
+    def merge_data(self, zoho_crm_url, zoho_projects_url, access_token,access_tokend):
+    # Retrieve data from Zoho CRM API
+        headers = {
+            "Authorization": f"Zoho-oauthtoken {access_tokend}"
+        }
+        all_records = []
+
+        page_token = None
+
+        while True:
+            params = {
+                "fields": "Master_Customer_Id,Account_Name",
+                "per_page": 200
+            }
+
+            if page_token:
+                params["page_token"] = page_token
+
+            response = requests.get(zoho_crm_url, headers=headers, params=params)
+
+            if response.status_code != 200:
+                print(f"Error: {response.status_code} - {response.text}")
+                break
+
+            data = response.json()
+            records = data.get("data", [])
+            all_records.extend(records)
+           
+
+            if not data.get("info", {}).get("more_records"):
+                break
+
+            page_token = data.get("info", {}).get("next_page_token")
+           
+
+        # Extract master_customer_ids from CRM data
+       
+
+        
+        # Retrieve data from Zoho Projects API
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        start = 0
+        size = 200
+        total_projects = []
+
+        while True:
+            params = {
+                "index": start,
+                "range": size
+            }
+
+            response = requests.get(zoho_projects_url, headers=headers, params=params)
+            data = response.json()
+            total_projects.extend(data["projects"])
+
+            if len(data["projects"]) < size:
+                break
+            else:
+                start += size
+
+        # Filter and merge relevant project data
+        master_customer_ids = set()
+        account_names = {}  # Store account names in a dictionary
+
+        for item in all_records:
+            master_customer_id = item.get("Master_Customer_Id")
+            account_name = item.get("Account_Name")
+            if master_customer_id:
+                master_customer_ids.add(master_customer_id)
+                # Store the account_name corresponding to the master_customer_id
+                if account_name:
+                    account_names[master_customer_id] = account_name
+
+        # Filter and merge relevant project data
+        merged_data = []
+        for project in total_projects:
+            for custom_field in project["custom_fields"]:
+                if "Customer ID" in custom_field:
+                    customer_id = custom_field["Customer ID"]
+                    if (
+                        project["status"] == "active"
+                        and customer_id in master_customer_ids
+                        
+                    ):
+                        project_info = {
+                            "name": project["name"],
+                            "owner_name": project["owner_name"],
+                            "Customer ID": customer_id,
+                            "Account_Name": account_names.get(customer_id, "")
+                        }
+                        merged_data.append(project_info)
+
+        return merged_data
+
+    def get(self, request, *args, **kwargs):
+        zoho_crm_url = "https://www.zohoapis.com/crm/v3/Accounts"
+        zoho_projects_url = "https://projectsapi.zoho.com/restapi/portal/687895858/projects/"
+        refresh_token = "1000.37614442538599aa9ee078f097c04422.b8e995b721dd851709c3cd2c53bee7ec"
+        refresh_tokend = "1000.348aa66b79cf3f1e32b635061bbf737c.3356f2bb63ce20071ccb2706413cb3c8"
+        access_token_cache_key = 'zoho_access_token'
+        access_tokend_cache_key = 'zoho_second_access_token'
+
+        # Attempt to retrieve access tokens from cache
+        access_token = cache.get(access_token_cache_key)
+        access_tokend = cache.get(access_tokend_cache_key)
+
+        if access_token is None:
+            # If not in cache, fetch a new access token and store it in cache
+            access_token = self.generate_access_token(refresh_token)
+        else:
+                cache.set(access_token_cache_key, access_token, timeout=3600)  # Cache for 1 hour
+
+        if access_tokend is None:
+            # If not in cache, fetch a new access token and store it in cache
+            access_tokend = self.generate_second_access_token(refresh_tokend)
+        else:
+                cache.set(access_tokend_cache_key, access_tokend, timeout=3600)  # Cache for 1 hour
+
+        
+        if access_token and access_tokend:
+            merged_data = self.merge_data(zoho_crm_url, zoho_projects_url,access_token,access_tokend)
+            project_info = {"projects": merged_data}
+            cache.set('project_info', project_info, timeout=7200)
+            return Response(project_info)
+        else:
+            return Response({"error": "Failed to obtain access token"})
+        
+        

@@ -86,7 +86,11 @@ class User(AbstractBaseUser):
       # Simplest possible answer: All admins are staff
       return self.is_admin
   
-
+is_choices=(
+   ("yes","yes"),
+   ("no","no"),
+   ("none","none")
+)
 class checklist(models.Model):
     project_number = models.TextField(default = None,blank=False,null=False)
     subcontractor_name = models.TextField(default = None,blank=False,null=False)
@@ -117,10 +121,28 @@ class checklist(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     auto_increment_id = models.AutoField(primary_key=True,default=None)
     user = models.ForeignKey(User,on_delete=models.CASCADE,blank=True,null=True)
-    #is_true = models.BooleanField(default=False)
+    tested = models.BooleanField(default=None,null=True)
+    semester = models.CharField(
+        max_length = 20,
+        choices = is_choices,
+        default = 'none'
+        )
+    
+    @property
+    def all_fields_have_value(self):
+        # List all the fields you want to check
+        fields_to_check = [self.field1, self.field2, self.field3]
+        # Add more fields to the list if needed...
+
+        # Use all() to check if all fields have values
+        return all(field for field in fields_to_check if field)    
+    #is_true = models.BooleanField(default=False)   
+
+   
 
     def __str__(self):
       return self.project_number
+ 
 
 
 

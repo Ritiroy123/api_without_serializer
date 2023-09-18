@@ -44,7 +44,7 @@ urlpatterns = [
     path('complete_form/<int:auto_increment_id>/', views.get_checklist_with_completeness, name='checklist-with-completeness'),
      path('exitformdate/', views.get_checklists_for_current_date, name='all-checklists-completeness'),
      path('exitform/', views.get_checklist_data, name='all-checklists-completeness'),
-     # path('zohoprojectsView/', views.ZohoProjects.as_view(), name='zoho projects'),
+     path('zohoprojects/', views.ZohoProjects.as_view(), name='zoho projects'),
 
     
 ]
