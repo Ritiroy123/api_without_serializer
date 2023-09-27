@@ -245,8 +245,8 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = "ritiroy85257@gmail.com"
-EMAIL_HOST_PASSWORD = "dkzbvduerjefxqpd"
+EMAIL_HOST_USER = "ritikaroy85257@gmail.com"
+EMAIL_HOST_PASSWORD = "wvdy ndqd nltm wlae"
 
 WEBEX_CLIENT_ID = 'C3a01ef3a1d39871845e25385a390d648b324bd6e824752c7a409a6c596815202 '
 WEBEX_CLIENT_SECRET = ' 91d14a2b3eabcc082e5fc76ba0fa96790349aae3fddb0e9ee6a87b9afbb4a57c'

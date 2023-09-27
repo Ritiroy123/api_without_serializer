@@ -288,7 +288,7 @@ def webex_callback(request):
 #             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
-def create_work_info(request):
+def create_work_info(request,*args,**kwargs):
     try:
         user = request.user
         # if not user.is_authenticated:
@@ -320,21 +320,19 @@ def create_work_info(request):
         user_email = work_info_instance.user.email
        
         subject = 'New Worker Information'
-       
-        from_email = 'ritiroy85257@gmail.com'
+        from_email = 'ritikaroy85257@gmail.com'
         recipient_list = [user_email]
-        # Generate HTML content from the template (if needed)
+        #Generate HTML content from the template (if needed)
         email_template = 'template.html'
         email_context = {
             'post_details': data,
         }
-        html_message = render_to_string(email_template, email_context)
+        html_message = render_to_string(email_template,email_context)
         plain_message = strip_tags(html_message)  # Strip HTML for plain text version
         # Send email
         send_mail(subject, plain_message, from_email, recipient_list, html_message=html_message, fail_silently=False)
-        
 
-        return Response(data, status=status.HTTP_201_CREATED)
+        return Response("email send successfully", status=status.HTTP_201_CREATED)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)      
 #b=User(email="riti2345679@gmail.com",name="riti",phone_number="93546737")   
@@ -1089,5 +1087,3 @@ class ZohoProjects(APIView):
             return Response(project_info)
         else:
             return Response({"error": "Failed to obtain access token"})
-        
-        
