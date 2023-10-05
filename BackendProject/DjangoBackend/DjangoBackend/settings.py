@@ -149,6 +149,7 @@ DATABASES = {
 }
 
 # Password validation
+
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -246,7 +247,7 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = "ritikaroy85257@gmail.com"
-EMAIL_HOST_PASSWORD = "wvdy ndqd nltm wlae"
+EMAIL_HOST_PASSWORD = "uvfm usus kppe tuwc"
 
 WEBEX_CLIENT_ID = 'C3a01ef3a1d39871845e25385a390d648b324bd6e824752c7a409a6c596815202 '
 WEBEX_CLIENT_SECRET = ' 91d14a2b3eabcc082e5fc76ba0fa96790349aae3fddb0e9ee6a87b9afbb4a57c'
@@ -256,7 +257,10 @@ WEBEX_ACCESS_TOKEN_URL = 'https://api.ciscospark.com/v1/access_token'
 
 CORS_ORIGIN_ALLOW_ALL = True
 
+
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 
 
+
+# checking 
